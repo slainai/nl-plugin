@@ -1,0 +1,221 @@
+{
+  "openrecon": "v0.2.0",
+  "blocks": [
+    {
+      "id": "c3d4e5f6-0003-0003-0003-000000000001",
+      "type": "datasource",
+      "args": {
+        "source_type": "file",
+        "formats": ["excel"],
+        "name": "erp_multileg_source"
+      }
+    },
+    {
+      "id": "c3d4e5f6-0003-0003-0003-000000000002",
+      "type": "read",
+      "args": {
+        "input": "c3d4e5f6-0003-0003-0003-000000000001",
+        "name": "erp_multileg_read",
+        "columns_alias_map": [
+          {
+            "name": "voucher_no",
+            "dtype": "string",
+            "nullable": false,
+            "possible_names": ["Voucher_No", "VoucherNo", "Voucher"]
+          },
+          {
+            "name": "posting_date",
+            "dtype": "date",
+            "nullable": false,
+            "possible_names": ["Posting_Date", "PostingDate", "Date"]
+          },
+          {
+            "name": "vendor_code",
+            "dtype": "string",
+            "nullable": true,
+            "possible_names": ["Vendor_Code", "VendorCode", "Vendor"]
+          },
+          {
+            "name": "utr",
+            "dtype": "string",
+            "nullable": true,
+            "possible_names": ["UTR", "UTR_Number", "UtrNo"]
+          },
+          {
+            "name": "account",
+            "dtype": "string",
+            "nullable": false,
+            "possible_names": ["Account", "Ledger", "GL_Account"]
+          },
+          {
+            "name": "dr_cr",
+            "dtype": "string",
+            "nullable": false,
+            "possible_names": ["Dr_Cr", "DrCr", "Direction"]
+          },
+          {
+            "name": "amount",
+            "dtype": "float",
+            "nullable": false,
+            "possible_names": ["Amount", "Amt", "Value"]
+          }
+        ],
+        "dedup_columns": ["voucher_no", "account", "dr_cr", "amount"],
+        "excel_options": {
+          "sheet_name": "AP_Ledger",
+          "header": true
+        }
+      }
+    },
+    {
+      "id": "c3d4e5f6-0003-0003-0003-000000000003",
+      "type": "groupby",
+      "args": {
+        "input": "c3d4e5f6-0003-0003-0003-000000000002",
+        "name": "erp_grouped_by_voucher",
+        "by": [
+          {
+            "type": "col_ref",
+            "name": "voucher_no",
+            "table": "parent"
+          }
+        ],
+        "aggregations": [
+          {
+            "name": "posting_date",
+            "expression": {
+              "type": "first",
+              "args": [
+                {
+                  "type": "col_ref",
+                  "name": "posting_date",
+                  "table": "parent"
+                }
+              ]
+            },
+            "dtype": "date"
+          },
+          {
+            "name": "vendor_code",
+            "expression": {
+              "type": "first",
+              "args": [
+                {
+                  "type": "col_ref",
+                  "name": "vendor_code",
+                  "table": "parent"
+                }
+              ]
+            },
+            "dtype": "string"
+          },
+          {
+            "name": "utr",
+            "expression": {
+              "type": "first",
+              "args": [
+                {
+                  "type": "col_ref",
+                  "name": "utr",
+                  "table": "parent"
+                }
+              ]
+            },
+            "dtype": "string"
+          },
+          {
+            "name": "total_dr_amount",
+            "expression": {
+              "type": "sum",
+              "args": [
+                {
+                  "type": "col_ref",
+                  "name": "amount",
+                  "table": "parent"
+                }
+              ]
+            },
+            "dtype": "float"
+          },
+          {
+            "name": "line_count",
+            "expression": {
+              "type": "count"
+            },
+            "dtype": "integer"
+          },
+          {
+            "name": "accounts_list",
+            "expression": {
+              "type": "collect_set",
+              "args": [
+                {
+                  "type": "col_ref",
+                  "name": "account",
+                  "table": "parent"
+                }
+              ]
+            },
+            "dtype": "string"
+          }
+        ]
+      }
+    },
+    {
+      "id": "c3d4e5f6-0003-0003-0003-000000000004",
+      "type": "journal",
+      "args": {
+        "input": "c3d4e5f6-0003-0003-0003-000000000003",
+        "name": "erp_voucher_journal",
+        "source": "erp",
+        "pool": "erp",
+        "date_expr": {
+          "type": "col_ref",
+          "name": "posting_date",
+          "table": "parent"
+        },
+        "debit_entries": [
+          {
+            "account": "Expenses",
+            "value": {
+              "type": "col_ref",
+              "name": "total_dr_amount",
+              "table": "parent"
+            },
+            "currency": {"type": "literal", "value": "INR", "dtype": "string"}
+          }
+        ],
+        "credit_entries": [
+          {
+            "account": "AccountsPayable",
+            "value": {
+              "type": "col_ref",
+              "name": "total_dr_amount",
+              "table": "parent"
+            },
+            "currency": {"type": "literal", "value": "INR", "dtype": "string"}
+          }
+        ],
+        "identifiers": {
+          "utr": {
+            "type": "col_ref",
+            "name": "utr",
+            "table": "parent"
+          },
+          "vendor_code": {
+            "type": "col_ref",
+            "name": "vendor_code",
+            "table": "parent"
+          }
+        },
+        "raw": {
+          "accounts_list": {
+            "type": "col_ref",
+            "name": "accounts_list",
+            "table": "parent"
+          }
+        }
+      }
+    }
+  ]
+}

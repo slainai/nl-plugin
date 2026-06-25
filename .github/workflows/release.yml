@@ -1,0 +1,42 @@
+name: Release
+
+# Fires on every push to main. python-semantic-release reads commits since
+# the last tag, bumps the version in both manifest files, regenerates
+# CHANGELOG.md, commits as `chore(release): X.Y.Z`, tags `vX.Y.Z`, and
+# creates a GitHub Release entry. No build artifacts are uploaded — this
+# plugin has nothing to compile at release time.
+#
+# If only no-release commits landed (docs/chore/ci/etc.), the workflow
+# runs and exits clean with no version change.
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: main
+          # PAT (Contents: R/W) so the bot can push past the main-branch
+          # ruleset. GITHUB_TOKEN cannot bypass branch rules; the PAT can
+          # because it acts as an admin user.
+          token: ${{ secrets.SEMANTIC_RELEASE_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run semantic-release (version + tag + create release)
+        uses: python-semantic-release/python-semantic-release@v9
+        with:
+          github_token: ${{ secrets.SEMANTIC_RELEASE_TOKEN }}

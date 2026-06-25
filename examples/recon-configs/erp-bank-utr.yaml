@@ -1,0 +1,33 @@
+openrecon: v0.2.0
+match:
+  name: erp_bank_utr_recon
+
+  operations:
+    - name: match_by_utr_exact
+      behavior: auto_match
+      sides:
+        - name: erp
+          pick:
+            - field: pool
+              op: equals
+              value: erp
+          unit:
+            kind: identity
+        - name: bank
+          pick:
+            - field: pool
+              op: equals
+              value: bank
+          unit:
+            kind: identity
+      criteria:
+        - field: identifiers.utr
+          comparator: equals
+          between: [erp, bank]
+        - field:
+            erp: "entries[account=\"AccountsPayable\"].amount"
+            bank: "entries[account=\"BankAccount\"].amount"
+          comparator: within
+          config:
+            tolerance: "100"
+          between: [erp, bank]

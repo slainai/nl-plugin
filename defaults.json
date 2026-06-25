@@ -1,0 +1,17 @@
+{
+  "default": "prod",
+  "environments": {
+    "prod": {
+      "mcp_url": "https://api.numberlabs.io/mcp",
+      "host": "https://api.numberlabs.io"
+    },
+    "staging": {
+      "mcp_url": "https://staging-api.numberlabs.io/mcp",
+      "host": "https://staging-api.numberlabs.io"
+    },
+    "local": {
+      "mcp_url": "http://localhost:3033/mcp",
+      "host": "http://localhost:3033"
+    }
+  }
+}

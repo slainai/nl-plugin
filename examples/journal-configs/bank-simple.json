@@ -1,0 +1,204 @@
+{
+  "openrecon": "v0.2.0",
+  "blocks": [
+    {
+      "id": "a1b2c3d4-0001-0001-0001-000000000001",
+      "type": "datasource",
+      "args": {
+        "source_type": "file",
+        "formats": ["excel"],
+        "name": "bank_source"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0001-0001-0001-000000000002",
+      "type": "read",
+      "args": {
+        "input": "a1b2c3d4-0001-0001-0001-000000000001",
+        "name": "bank_read",
+        "columns_alias_map": [
+          {
+            "name": "bank_ref",
+            "dtype": "string",
+            "nullable": false,
+            "possible_names": ["Bank_Ref", "BankRef", "TxnRef"]
+          },
+          {
+            "name": "value_date",
+            "dtype": "string",
+            "nullable": false,
+            "possible_names": ["Value_Date", "ValueDate", "Date"]
+          },
+          {
+            "name": "utr",
+            "dtype": "string",
+            "nullable": true,
+            "possible_names": ["UTR_Number", "UTR", "UtrNumber"]
+          },
+          {
+            "name": "narration",
+            "dtype": "string",
+            "nullable": true,
+            "possible_names": ["Narration", "Description", "Remarks"]
+          },
+          {
+            "name": "debit_raw",
+            "dtype": "string",
+            "nullable": true,
+            "possible_names": ["Debit", "Dr", "DebitAmount"]
+          },
+          {
+            "name": "credit_raw",
+            "dtype": "string",
+            "nullable": true,
+            "possible_names": ["Credit", "Cr", "CreditAmount"]
+          }
+        ],
+        "dedup_columns": ["bank_ref"],
+        "excel_options": {
+          "sheet_name": "Transactions",
+          "header": true
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0001-0001-0001-000000000009",
+      "type": "select",
+      "args": {
+        "input": "a1b2c3d4-0001-0001-0001-000000000002",
+        "name": "bank_cast",
+        "columns": [
+          {
+            "name": "bank_ref",
+            "expression": {"type": "col_ref", "name": "bank_ref", "table": "parent"}
+          },
+          {
+            "name": "value_date",
+            "expression": {
+              "type": "cast",
+              "args": [
+                {"type": "col_ref", "name": "value_date", "table": "parent"},
+                {"type": "literal", "value": "date", "dtype": "string"}
+              ]
+            }
+          },
+          {
+            "name": "utr",
+            "expression": {"type": "col_ref", "name": "utr", "table": "parent"}
+          },
+          {
+            "name": "narration",
+            "expression": {"type": "col_ref", "name": "narration", "table": "parent"}
+          },
+          {
+            "name": "debit_amt",
+            "expression": {
+              "type": "cast",
+              "args": [
+                {"type": "col_ref", "name": "debit_raw", "table": "parent"},
+                {"type": "literal", "value": "float", "dtype": "string"}
+              ]
+            }
+          },
+          {
+            "name": "credit_amt",
+            "expression": {
+              "type": "cast",
+              "args": [
+                {"type": "col_ref", "name": "credit_raw", "table": "parent"},
+                {"type": "literal", "value": "float", "dtype": "string"}
+              ]
+            }
+          },
+          {
+            "name": "direction",
+            "expression": {
+              "type": "case",
+              "args": [
+                [
+                  {
+                    "condition": {
+                      "type": "greater_than",
+                      "args": [
+                        {"type": "col_ref", "name": "debit_amt", "table": "this"},
+                        {"type": "literal", "value": 0.0, "dtype": "float"}
+                      ]
+                    },
+                    "result": {"type": "literal", "value": "debit", "dtype": "string"}
+                  }
+                ],
+                {"type": "literal", "value": "credit", "dtype": "string"}
+              ]
+            }
+          },
+          {
+            "name": "txn_amount",
+            "expression": {
+              "type": "greatest",
+              "args": [
+                {"type": "col_ref", "name": "debit_amt", "table": "this"},
+                {"type": "col_ref", "name": "credit_amt", "table": "this"}
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "a1b2c3d4-0001-0001-0001-000000000003",
+      "type": "journal",
+      "args": {
+        "input": "a1b2c3d4-0001-0001-0001-000000000009",
+        "name": "bank_journal",
+        "source": "bank",
+        "pool": "bank",
+        "date_expr": {
+          "type": "col_ref",
+          "name": "value_date",
+          "table": "parent"
+        },
+        "debit_entries": [
+          {
+            "account": "BankAccount",
+            "value": {
+              "type": "col_ref",
+              "name": "txn_amount",
+              "table": "parent"
+            },
+            "currency": {"type": "literal", "value": "INR", "dtype": "string"}
+          }
+        ],
+        "credit_entries": [
+          {
+            "account": "Counterparty",
+            "value": {
+              "type": "col_ref",
+              "name": "txn_amount",
+              "table": "parent"
+            },
+            "currency": {"type": "literal", "value": "INR", "dtype": "string"}
+          }
+        ],
+        "identifiers": {
+          "utr": {
+            "type": "col_ref",
+            "name": "utr",
+            "table": "parent"
+          }
+        },
+        "raw": {
+          "narration": {
+            "type": "col_ref",
+            "name": "narration",
+            "table": "parent"
+          },
+          "direction": {
+            "type": "col_ref",
+            "name": "direction",
+            "table": "parent"
+          }
+        }
+      }
+    }
+  ]
+}

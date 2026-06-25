@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "numberlabs": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://api.numberlabs.io/mcp",
+        "--header",
+        "X-MCP-Toolsets:authoring,recon,actions,charts,reports,data"
+      ]
+    }
+  }
+}

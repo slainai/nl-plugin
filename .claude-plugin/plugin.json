@@ -1,0 +1,8 @@
+{
+  "name": "numberlabs",
+  "version": "0.1.0",
+  "description": "Author and validate numberlabs reconciliation configs locally with the openrecon CLI, then drive them against a live tenant through the Flow Service API MCP server.",
+  "author": { "name": "slainai", "url": "https://github.com/slainai" },
+  "repository": "https://github.com/slainai/nl-plugin",
+  "license": "Proprietary"
+}

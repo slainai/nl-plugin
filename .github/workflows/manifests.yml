@@ -1,0 +1,48 @@
+name: manifests
+
+# Lightweight PR gate. Two jobs:
+#   - validate: parse both plugin manifests, confirm semver, confirm they agree.
+#   - bump-required: if a user-facing surface changed, the version must too.
+# Semantic-release does the actual bumping post-merge — this job only catches
+# manual edits that desync the two version strings before they reach main.
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Versions parse and agree
+        run: |
+          set -euo pipefail
+          P=$(jq -r .version .claude-plugin/plugin.json)
+          M=$(jq -r '.plugins[] | select(.name=="numberlabs") | .version' .claude-plugin/marketplace.json)
+          echo "plugin.json     = $P"
+          echo "marketplace.json= $M"
+          [ "$P" = "$M" ] || { echo "::error::version mismatch between plugin.json ($P) and marketplace.json ($M)"; exit 1; }
+          echo "$P" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "::error::not semver: $P"; exit 1; }
+
+  bump-required:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Version must bump when user-facing surface changes
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          CHANGED=$(git diff --name-only origin/main...HEAD)
+          echo "$CHANGED"
+          if echo "$CHANGED" | grep -qE '^(skills/|commands/|agents/|hooks/|bin/|\.mcp\.json|\.claude-plugin/plugin\.json|\.claude-plugin/marketplace\.json)'; then
+            OLD=$(git show origin/main:.claude-plugin/plugin.json | jq -r .version)
+            NEW=$(jq -r .version .claude-plugin/plugin.json)
+            if [ "$OLD" = "$NEW" ]; then
+              echo "::notice::user-facing surface changed but version is still $OLD."
+              echo "::notice::This is fine if the PR title is feat:/fix:/perf: — semantic-release will bump on merge."
+              echo "::notice::If the PR title is docs:/chore:/ci:/refactor:/etc. and you intended a release, fix the title."
+            fi
+          fi

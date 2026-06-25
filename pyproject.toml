@@ -1,0 +1,22 @@
+[tool.semantic_release]
+# This repo is not a Python package — pyproject.toml exists only to host the
+# semantic-release config for the plugin. The openrecon Rust CLI lives in its
+# own repo (slainai/openrecon-rs) with its own release tooling; this repo ships
+# only the prebuilt (xz-compressed) binaries under bin/.
+branch = "main"
+commit_parser = "conventional"
+# Stay in 0.x: breaking changes bump minor, not major. Promote to 1.0.0 by hand.
+major_on_zero = false
+tag_format = "v{version}"
+# Both manifests carry a "version": "X.Y.Z" line — semantic-release rewrites
+# them atomically in the release commit. Keep them aligned: if one drifts,
+# /plugin update silently misses the new version.
+version_variables = [
+  ".claude-plugin/plugin.json:version",
+  ".claude-plugin/marketplace.json:version",
+]
+
+[tool.semantic_release.commit_parser_options]
+allowed_tags = ["feat", "fix", "perf", "refactor", "docs", "chore", "test", "ci", "build", "style"]
+minor_tags = ["feat"]
+patch_tags = ["fix", "perf"]

@@ -1,0 +1,17 @@
+# Local recon work / scratch
+*.parquet
+result.json
+journals.json
+entries.json
+/tmp/
+.DS_Store
+
+# Bundled binaries: only the compressed archives are committed —
+# unix targets as .xz, the Windows target as its release .zip.
+# The raw decompressed binaries are ignored.
+bin/openrecon
+bin/openrecon-*-apple-darwin
+bin/openrecon-*-unknown-linux-musl
+bin/openrecon-*-pc-windows-msvc.exe
+!bin/*.xz
+!bin/*.zip

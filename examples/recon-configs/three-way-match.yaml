@@ -1,0 +1,56 @@
+openrecon: v0.2.0
+match:
+  name: procure_to_pay_three_way
+
+  operations:
+    - name: three_way_po_grn_invoice
+      behavior: auto_match
+      sides:
+        - name: po
+          pick:
+            - field: pool
+              op: equals
+              value: po
+          unit:
+            kind: identity
+        - name: grn
+          pick:
+            - field: pool
+              op: equals
+              value: grn
+          unit:
+            kind: identity
+        - name: invoice
+          pick:
+            - field: pool
+              op: equals
+              value: invoice
+          unit:
+            kind: identity
+      criteria:
+        - field: identifiers.po_number
+          comparator: equals
+          between: [po, grn]
+        - field: identifiers.po_number
+          comparator: equals
+          between: [grn, invoice]
+        - field:
+            po: "entries[account=\"AP\"].amount"
+            grn: "entries[account=\"Inventory\"].amount"
+          comparator: within
+          config:
+            tolerance: "1000"
+          between: [po, grn]
+        - field:
+            invoice: "entries[account=\"AP\"].amount"
+            grn: "entries[account=\"Inventory\"].amount"
+          comparator: within
+          config:
+            tolerance: "500"
+          between: [invoice, grn]
+      validation:
+        type: all_sides_equal
+        config:
+          field: "entries[account=\"AP\"].amount"
+          tolerance: "1500"
+        flag: three_way_amount_mismatch
