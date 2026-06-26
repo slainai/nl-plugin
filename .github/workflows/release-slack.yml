@@ -1,0 +1,78 @@
+name: Slack release notification
+
+# Posts the changelog to Slack whenever a GitHub Release is published.
+#
+# This fires on `release: published`, which the release pipeline triggers:
+# python-semantic-release creates the GitHub Release using SEMANTIC_RELEASE_TOKEN
+# (a PAT). Releases created by a PAT — unlike ones created by the default
+# GITHUB_TOKEN — DO trigger downstream workflows, so this runs automatically
+# after each real release. It also runs for any release published by hand.
+#
+# Setup: create a Slack Incoming Webhook bound to the target channel and store
+# its URL as the repo secret SLACK_WEBHOOK_URL. Until that secret exists, the
+# job no-ops with a warning (it never fails the release).
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: slack-release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    # Skip pre-releases; only announce full releases.
+    if: github.event.release.prerelease == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post changelog to Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          # Pass event fields via env (never inline ${{ }} into the script) to
+          # avoid shell-injection from release titles/bodies.
+          RELEASE_NAME: ${{ github.event.release.name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_URL: ${{ github.event.release.html_url }}
+          RELEASE_BODY: ${{ github.event.release.body }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+            echo "::warning::SLACK_WEBHOOK_URL secret not set — skipping Slack notification."
+            exit 0
+          fi
+
+          # GitHub markdown -> Slack mrkdwn (minimal, robust):
+          #   **bold** -> *bold* ; headings -> *bold* ; -/* bullets -> • ;
+          #   [text](url) -> <url|text>
+          BODY=$(printf '%s' "${RELEASE_BODY:-}" \
+            | sed -E 's/\*\*([^*]+)\*\*/*\1*/g' \
+            | sed -E 's/^#{1,6}[[:space:]]+(.*)$/*\1*/' \
+            | sed -E 's/^[[:space:]]*[-*][[:space:]]+/• /' \
+            | sed -E 's/\[([^]]+)\]\(([^)]+)\)/<\2|\1>/g')
+
+          # Slack section text caps at 3000 chars; truncate safely.
+          if [ "${#BODY}" -gt 2800 ]; then
+            BODY="${BODY:0:2800}…"$'\n'"_(truncated — full changelog: ${RELEASE_URL})_"
+          fi
+          [ -n "$BODY" ] || BODY="_No changelog body._"
+
+          jq -n \
+            --arg title "🚀 ${REPO##*/} ${RELEASE_TAG} released" \
+            --arg body "$BODY" \
+            --arg url "$RELEASE_URL" \
+            '{blocks:[
+               {type:"header",  text:{type:"plain_text", text:$title, emoji:true}},
+               {type:"section",  text:{type:"mrkdwn", text:$body}},
+               {type:"context",  elements:[{type:"mrkdwn", text:("<" + $url + "|View the full release>")}]}
+             ]}' > payload.json
+
+          resp=$(curl -sS -X POST -H 'Content-type: application/json' --data @payload.json "$SLACK_WEBHOOK_URL")
+          echo "Slack response: $resp"
+          [ "$resp" = "ok" ] || { echo "::error::Slack webhook did not return ok (got: $resp)"; exit 1; }
+          echo "Posted ${RELEASE_TAG} changelog to Slack."
